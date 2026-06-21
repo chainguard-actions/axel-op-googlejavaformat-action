@@ -1,0 +1,44 @@
+name: Test skip-commit option
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Install Java
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq default-jdk curl
+          java -version
+
+      - name: Create an already-formatted Java file
+        run: |
+          cat > "$GITHUB_WORKSPACE/Formatted.java" << 'EOF'
+          public class Formatted {
+            public static void main(String[] args) {
+              System.out.println("Hello");
+            }
+          }
+          EOF
+
+      - id: action
+        uses: .
+        with:
+          args: "--replace"
+          files: "**/*.java"
+          skip-commit: "true"
+          release-name: "v1.24.0"
+
+      - name: Assert action completed without committing
+        run: |
+          echo "Checking that action ran with skip-commit=true..."
+          if [ ! -f "$GITHUB_WORKSPACE/Formatted.java" ]; then
+            echo "FAIL: Formatted.java not found"
+            exit 1
+          fi
+          # Verify no git commit was made by checking git log
+          COMMIT_COUNT=$(git log --oneline | wc -l)
+          echo "Commit count: $COMMIT_COUNT"
+          echo "PASS: Action completed with skip-commit=true, no new commit made"

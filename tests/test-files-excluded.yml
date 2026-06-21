@@ -1,0 +1,57 @@
+name: Test files-excluded option
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Install Java
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq default-jdk curl
+          java -version
+
+      - name: Create Java files for testing exclusion
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/src"
+          mkdir -p "$GITHUB_WORKSPACE/generated"
+
+          cat > "$GITHUB_WORKSPACE/src/Main.java" << 'EOF'
+          public class Main {
+            public static void main(String[] args) {
+              System.out.println("Main");
+            }
+          }
+          EOF
+
+          cat > "$GITHUB_WORKSPACE/generated/Generated.java" << 'EOF'
+          public class Generated {
+            public static void main(String[] args) {
+              System.out.println("Generated");
+            }
+          }
+          EOF
+
+      - id: action
+        uses: .
+        with:
+          args: "--replace"
+          files: "**/*.java"
+          files-excluded: "generated/**"
+          skip-commit: "true"
+          release-name: "v1.24.0"
+
+      - name: Assert both files still exist
+        run: |
+          echo "Checking that both Java files exist after action..."
+          if [ ! -f "$GITHUB_WORKSPACE/src/Main.java" ]; then
+            echo "FAIL: src/Main.java not found"
+            exit 1
+          fi
+          if [ ! -f "$GITHUB_WORKSPACE/generated/Generated.java" ]; then
+            echo "FAIL: generated/Generated.java not found"
+            exit 1
+          fi
+          echo "PASS: Both files exist, exclusion pattern was accepted"

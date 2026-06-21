@@ -1,0 +1,42 @@
+name: Test commit-message input
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Install Java
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq default-jdk curl
+          java -version
+
+      - name: Create an already-formatted Java file
+        run: |
+          cat > "$GITHUB_WORKSPACE/MyClass.java" << 'EOF'
+          public class MyClass {
+            public static void main(String[] args) {
+              System.out.println("Hello");
+            }
+          }
+          EOF
+
+      - id: action
+        uses: .
+        with:
+          args: "--replace"
+          files: "**/*.java"
+          skip-commit: "true"
+          release-name: "v1.24.0"
+          commit-message: "chore: apply google java format"
+
+      - name: Assert action completed with commit-message input
+        run: |
+          echo "Checking that MyClass.java exists after action ran with commit-message input..."
+          if [ ! -f "$GITHUB_WORKSPACE/MyClass.java" ]; then
+            echo "FAIL: MyClass.java not found after action ran"
+            exit 1
+          fi
+          echo "PASS: Action completed successfully with commit-message input provided"

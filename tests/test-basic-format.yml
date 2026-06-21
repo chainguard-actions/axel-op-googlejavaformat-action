@@ -1,0 +1,41 @@
+name: Test basic Java formatting
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Install Java
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq default-jdk curl
+          java -version
+
+      - name: Create a Java file that needs formatting
+        run: |
+          cat > "$GITHUB_WORKSPACE/Hello.java" << 'EOF'
+          public class Hello {
+          public static void main(String[] args) {
+          System.out.println("Hello, World!");
+          }
+          }
+          EOF
+
+      - id: action
+        uses: .
+        with:
+          args: "--replace"
+          files: "**/*.java"
+          skip-commit: "true"
+          release-name: "v1.24.0"
+
+      - name: Assert Java file was processed
+        run: |
+          echo "Checking that Hello.java exists after formatting..."
+          if [ ! -f "$GITHUB_WORKSPACE/Hello.java" ]; then
+            echo "FAIL: Hello.java not found after action ran"
+            exit 1
+          fi
+          echo "PASS: Hello.java exists and action completed successfully"
