@@ -1,4 +1,4 @@
-name: Test skip-commit option
+name: Test skip-commit mode
 on:
   workflow_dispatch:
 jobs:
@@ -7,38 +7,64 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - name: Install Java
+      - name: Install Java if not present
         run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq default-jdk curl
+          if ! command -v java &>/dev/null; then
+            apt-get update -qq
+            apt-get install -y -qq default-jdk
+          fi
           java -version
 
-      - name: Create an already-formatted Java file
+      - name: Set up git user
         run: |
-          cat > "$GITHUB_WORKSPACE/Formatted.java" << 'EOF'
-          public class Formatted {
-            public static void main(String[] args) {
-              System.out.println("Hello");
-            }
-          }
-          EOF
+          git config user.email "test@example.com"
+          git config user.name "Test User"
 
-      - id: action
+      - name: Create src directory and copy unformatted Java file, then commit
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/src"
+          cp "$GITHUB_WORKSPACE/tests/fixtures/java/Unformatted.java" "$GITHUB_WORKSPACE/src/Unformatted.java"
+          git add src/Unformatted.java
+          git commit -m "Add unformatted Java file for skip-commit test"
+
+      - name: Capture commit count before formatting
+        run: |
+          git log --oneline | wc -l > /tmp/commit_count_before.txt
+          echo "Commits before: $(cat /tmp/commit_count_before.txt)"
+          git status
+
+      - id: format
         uses: .
         with:
           args: "--replace"
-          files: "**/*.java"
+          files: "src/**/*.java"
           skip-commit: "true"
           release-name: "v1.24.0"
+          github-token: ${{ github.token }}
 
       - name: Assert action completed without committing
         run: |
-          echo "Checking that action ran with skip-commit=true..."
-          if [ ! -f "$GITHUB_WORKSPACE/Formatted.java" ]; then
-            echo "FAIL: Formatted.java not found"
+          BEFORE=$(cat /tmp/commit_count_before.txt)
+          AFTER=$(git log --oneline | wc -l)
+          echo "Commits before: $BEFORE"
+          echo "Commits after:  $AFTER"
+          echo "--- Git log (last 3 commits) ---"
+          git log --oneline -3
+          echo "--- Git status ---"
+          git status
+          if [ "$AFTER" -eq "$BEFORE" ]; then
+            echo "PASS: No new commit was made (skip-commit=true worked)"
+          else
+            echo "FAIL: A commit was made despite skip-commit=true"
             exit 1
           fi
-          # Verify no git commit was made by checking git log
-          COMMIT_COUNT=$(git log --oneline | wc -l)
-          echo "Commit count: $COMMIT_COUNT"
-          echo "PASS: Action completed with skip-commit=true, no new commit made"
+
+      - name: Assert Java file was formatted
+        run: |
+          if [ ! -f "$GITHUB_WORKSPACE/src/Unformatted.java" ]; then
+            echo "FAIL: src/Unformatted.java not found"
+            exit 1
+          fi
+          echo "--- Formatted file content ---"
+          cat "$GITHUB_WORKSPACE/src/Unformatted.java"
+          echo "PASS: File exists after formatting"

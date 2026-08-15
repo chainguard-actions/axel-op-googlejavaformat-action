@@ -1,4 +1,4 @@
-name: Test files-excluded option
+name: Test files-excluded pattern
 on:
   workflow_dispatch:
 jobs:
@@ -7,51 +7,70 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - name: Install Java
+      - name: Install Java if not present
         run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq default-jdk curl
+          if ! command -v java &>/dev/null; then
+            apt-get update -qq
+            apt-get install -y -qq default-jdk
+          fi
           java -version
 
-      - name: Create Java files for testing exclusion
+      - name: Set up git user
         run: |
+          git config user.email "test@example.com"
+          git config user.name "Test User"
+
+      - name: Create src directories and copy Java files, then commit
+        run: |
+          # File to be formatted
           mkdir -p "$GITHUB_WORKSPACE/src"
-          mkdir -p "$GITHUB_WORKSPACE/generated"
+          cp "$GITHUB_WORKSPACE/tests/fixtures/java/ToFormat.java" "$GITHUB_WORKSPACE/src/ToFormat.java"
+          # File to be excluded (in a generated directory)
+          mkdir -p "$GITHUB_WORKSPACE/src/generated"
+          cp "$GITHUB_WORKSPACE/tests/fixtures/java/generated/Excluded.java" "$GITHUB_WORKSPACE/src/generated/Excluded.java"
+          # Commit both files so they are tracked by git
+          git add src/ToFormat.java src/generated/Excluded.java
+          git commit -m "Add Java files for files-excluded test"
+          # Capture original content of excluded file for comparison
+          cp "$GITHUB_WORKSPACE/src/generated/Excluded.java" /tmp/Excluded.java.orig
+          echo "--- ToFormat.java before ---"
+          cat "$GITHUB_WORKSPACE/src/ToFormat.java"
+          echo "--- Excluded.java before ---"
+          cat "$GITHUB_WORKSPACE/src/generated/Excluded.java"
 
-          cat > "$GITHUB_WORKSPACE/src/Main.java" << 'EOF'
-          public class Main {
-            public static void main(String[] args) {
-              System.out.println("Main");
-            }
-          }
-          EOF
-
-          cat > "$GITHUB_WORKSPACE/generated/Generated.java" << 'EOF'
-          public class Generated {
-            public static void main(String[] args) {
-              System.out.println("Generated");
-            }
-          }
-          EOF
-
-      - id: action
+      - id: format
         uses: .
         with:
           args: "--replace"
-          files: "**/*.java"
-          files-excluded: "generated/**"
+          files: "src/**/*.java"
+          files-excluded: "**/generated/**"
           skip-commit: "true"
           release-name: "v1.24.0"
+          github-token: ${{ github.token }}
 
-      - name: Assert both files still exist
+      - name: Assert ToFormat.java was processed
         run: |
-          echo "Checking that both Java files exist after action..."
-          if [ ! -f "$GITHUB_WORKSPACE/src/Main.java" ]; then
-            echo "FAIL: src/Main.java not found"
+          if [ ! -f "$GITHUB_WORKSPACE/src/ToFormat.java" ]; then
+            echo "FAIL: src/ToFormat.java not found"
             exit 1
           fi
-          if [ ! -f "$GITHUB_WORKSPACE/generated/Generated.java" ]; then
-            echo "FAIL: generated/Generated.java not found"
+          echo "--- ToFormat.java content after ---"
+          cat "$GITHUB_WORKSPACE/src/ToFormat.java"
+          echo "PASS: src/ToFormat.java exists"
+
+      - name: Assert Excluded.java was not modified
+        run: |
+          if [ ! -f "$GITHUB_WORKSPACE/src/generated/Excluded.java" ]; then
+            echo "FAIL: src/generated/Excluded.java not found"
             exit 1
           fi
-          echo "PASS: Both files exist, exclusion pattern was accepted"
+          echo "--- Excluded.java content after ---"
+          cat "$GITHUB_WORKSPACE/src/generated/Excluded.java"
+          # The excluded file should be identical to the original
+          if diff -q "$GITHUB_WORKSPACE/src/generated/Excluded.java" /tmp/Excluded.java.orig > /dev/null 2>&1; then
+            echo "PASS: Excluded.java was not modified (as expected)"
+          else
+            echo "FAIL: Excluded.java was modified despite being in the excluded pattern"
+            diff "$GITHUB_WORKSPACE/src/generated/Excluded.java" /tmp/Excluded.java.orig || true
+            exit 1
+          fi

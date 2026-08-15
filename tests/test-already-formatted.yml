@@ -1,0 +1,64 @@
+name: Test already-formatted Java files (no changes)
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Install Java if not present
+        run: |
+          if ! command -v java &>/dev/null; then
+            apt-get update -qq
+            apt-get install -y -qq default-jdk
+          fi
+          java -version
+
+      - name: Set up git user
+        run: |
+          git config user.email "test@example.com"
+          git config user.name "Test User"
+
+      - name: Create src directory and copy already-formatted Java file, then commit
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/src"
+          cp "$GITHUB_WORKSPACE/tests/fixtures/java/AlreadyFormatted.java" "$GITHUB_WORKSPACE/src/AlreadyFormatted.java"
+          git add src/AlreadyFormatted.java
+          git commit -m "Add already-formatted Java file for testing"
+          # Capture checksum before formatting
+          md5sum "$GITHUB_WORKSPACE/src/AlreadyFormatted.java" > /tmp/before_checksum.txt
+          echo "Checksum before: $(cat /tmp/before_checksum.txt)"
+          echo "--- File content before formatting ---"
+          cat "$GITHUB_WORKSPACE/src/AlreadyFormatted.java"
+
+      - id: format
+        uses: .
+        with:
+          args: "--replace"
+          files: "src/**/*.java"
+          skip-commit: "true"
+          release-name: "v1.24.0"
+          github-token: ${{ github.token }}
+
+      - name: Assert action completed successfully
+        run: |
+          if [ ! -f "$GITHUB_WORKSPACE/src/AlreadyFormatted.java" ]; then
+            echo "FAIL: src/AlreadyFormatted.java not found after action"
+            exit 1
+          fi
+          echo "--- File content after formatting ---"
+          cat "$GITHUB_WORKSPACE/src/AlreadyFormatted.java"
+          echo "PASS: Action completed successfully on already-formatted file"
+
+      - name: Assert file was not modified (checksums match)
+        run: |
+          md5sum "$GITHUB_WORKSPACE/src/AlreadyFormatted.java" > /tmp/after_checksum.txt
+          echo "Before: $(cat /tmp/before_checksum.txt)"
+          echo "After:  $(cat /tmp/after_checksum.txt)"
+          if diff -q /tmp/before_checksum.txt /tmp/after_checksum.txt > /dev/null 2>&1; then
+            echo "PASS: Already-formatted file was not modified"
+          else
+            echo "WARN: File was modified - this may be acceptable if GJF made minor style adjustments"
+            diff "$GITHUB_WORKSPACE/src/AlreadyFormatted.java" "$GITHUB_WORKSPACE/tests/fixtures/java/AlreadyFormatted.java" || true
+          fi

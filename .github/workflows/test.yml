@@ -1,0 +1,72 @@
+name: Test
+
+on: [push, pull_request]
+
+permissions:
+  contents: read
+
+jobs:
+  unit-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 20
+      - name: Test
+        run: |
+          npm install
+          npm test
+
+  e2e-tests-with-token:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.owner.login == 'axel-op'
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        java-version: [8, 11, 17]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-java@b6e674f4b717d7b0ae3baee0fbe79f498905dfde # v1
+        with:
+          java-version: ${{ matrix.java-version }}
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 20 
+      - name: Compile
+        run: |
+          npm install
+          npx tsc
+      - name: Create dummy Java files
+        run: touch Main.java
+      - uses: ./
+        with:
+          skip-commit: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+  e2e-tests-without-token:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        java-version: [8, 11, 17]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-java@b6e674f4b717d7b0ae3baee0fbe79f498905dfde # v1
+        with:
+          java-version: ${{ matrix.java-version }}
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 20 
+      - name: Compile
+        run: |
+          npm install
+          npx tsc
+      - name: Create dummy Java files
+        run: touch Main.java
+      - uses: ./
+        continue-on-error: ${{ matrix.os == 'macos-latest' }}
+        with:
+          skip-commit: true
