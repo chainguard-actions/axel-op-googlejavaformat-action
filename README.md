@@ -6,9 +6,9 @@ Hardened by [Chainguard](https://www.chainguard.dev) from the upstream action at
 
 ## Versions
 
-| Version | Tag | Upstream commit |
-|---------|-----|-----------------|
-| v4.0.0 | [`v4.0.0`](https://github.com/chainguard-actions/axel-op-googlejavaformat-action/tree/v4.0.0) | [`c1134eb`](https://github.com/axel-op/googlejavaformat-action/commit/c1134ebd196c4cbffb077f9476585b0be8b6afcd) |
+| Version | Tag | Upstream commit | Hardening report |
+|---------|-----|-----------------|------------------|
+| v4.0.0 | [`v4.0.0`](https://github.com/chainguard-actions/axel-op-googlejavaformat-action/tree/v4.0.0) | [`c1134eb`](https://github.com/axel-op/googlejavaformat-action/commit/c1134ebd196c4cbffb077f9476585b0be8b6afcd) | [`HARDENING.md`](https://github.com/chainguard-actions/axel-op-googlejavaformat-action/blob/v4.0.0/HARDENING.md) |
 
 ## Privacy
 
